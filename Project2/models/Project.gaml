@@ -9,7 +9,7 @@ model Project
 
 global {
 	/* Prey info */
-    int nb_preys_init <- 200;//200;
+    int nb_preys_init <- 1;//200;
     int nb_preys -> {length(prey)};
     float prey_max_energy <- 1.0;
     float prey_max_transfert <- 0.1;
@@ -74,6 +74,8 @@ species generic_species {
     float proba_reproduce;
     int nb_max_offsprings;
     float energy_reproduce;
+    float energy_sprint; 
+    float energy_wander;
     //image_file my_icon;
     vegetation_cell my_cell <- one_of(vegetation_cell); // place at random cell
     float energy <- rnd(max_energy) update: energy - energy_consum max: max_energy; // initiate random energy (at most max_energy), subtract certain energy at each step
@@ -119,14 +121,98 @@ species generic_species {
             energy <- myself.energy / nb_offsprings; // assign offsprings parts of "parent's" energy 
         }
         energy <- energy / nb_offsprings; // adjust energy
-        //TODO: update the "mate's" energy as well
-//        list<prey> others <- (prey at_distance 6); // list of "visible" preys
-//        list<species(self)> mates <- species(self) inside (my_cell);
-//        species(self) inside (my_cell)[0].energy <-
+
     }
 
     float energy_from_eat {
         return 0.0;
+    }
+    
+    vegetation_cell move_distance (vegetation_cell closestPrey, float moves, bool towards <- true){
+    	
+		float preyX <- closestPrey.location.x;
+		float preyY <- closestPrey.location.y;
+		float selfX <- self.my_cell.location.x;
+		float selfY <- self.my_cell.location.y;
+		float x_diff <- preyX-selfX;
+		float y_diff <- preyY-selfY;
+		float moveX <- 0.0;
+		float moveY <- 0.0;
+		float moveattr <- moves;
+		
+
+		// if self right of prey
+		if(selfX > preyX){
+			// move left
+			moveX <- - min([abs(x_diff), moves]);
+			moves <- moves - min([abs(x_diff), moves]);
+		}else 
+		// self left of prey
+		if(selfX < preyX){
+			// move right
+			moveX <- min([abs(x_diff), moves]);
+			moves <- moves - min([abs(x_diff), moves]);
+		}else{
+			// if self under prey
+			if(selfY > preyY){
+				// move up
+				moveY <- -min([abs(y_diff), moves]);
+				moves <- moves - min([abs(y_diff), moves]);
+				
+			}else 
+			// if self over prey
+			if(selfY < preyY){
+				// move down
+				moveY <- min([abs(y_diff), moves]);
+				moves <- moves - min([abs(y_diff), moves]);
+			}
+		}
+		
+	
+//		// movement x
+//		moveX <- min([abs(x_diff), moves]); // move on x_axis as much as is the difference between prey & predator, at most 2
+//		moves <- moves - moveX;
+//		if (x_diff < 0) { // if prey was on the left, move to left
+//			moveX <- moveX * (-1);
+//		}
+//		
+//		// move y if there is more moves
+//		if (moves > 0) {
+//			moveY <- min([abs(y_diff), moves]);
+//			moves <- moves - moveY;
+//			if (y_diff < 0) {
+//				moveY <- moveY * (-1);
+//			}
+//		}
+		
+//		write species(self);
+		write "moves left: " + moves;
+		if(species(self) = prey){
+			write "xdsiff: "+x_diff;
+		write "ydiff: "+y_diff;
+//			write "I'm prey and lost energy.";
+			float temp <- energy;
+			energy <- energy - energy_wander*(moveattr-moves);
+
+			write "lost energy: " + (temp-energy);
+
+		} else { // if(species(self) is species(predator))
+			write "wolf loses energy: ";
+			if (moves = 0) {
+//				write "before: " + energy;
+				energy <- energy - energy_sprint; // subtract energy from sprinting
+//				write "now: " + energy;
+			} else if (moves = 1) {
+				energy <- energy - energy_wander; // subtract energy from wandering
+			}
+		}
+		
+		if(towards){
+			return vegetation_cell at {selfX + moveX, selfY + moveY};
+		}else{
+			return vegetation_cell at {selfX - moveX, selfY - moveY};
+		}
+		
     }
 
     vegetation_cell choose_cell {
@@ -203,20 +289,24 @@ species prey parent: generic_species {
 		if (closestPredator != nil) {
 			if (self.location distance_to closestPredator.location <= 1) { // if there is predator within 1 cell, flee
 				// move away by 3 fields (-energy_flee)
+				targ_cell <- move_distance(closestPredator.my_cell, 3.0, false);
 			} else { // Otherwise move slowly away
 				// move away by 1 field (-energy_wander)
+				targ_cell <- move_distance(closestPredator.my_cell, 1.0, false);
 			}
 		} else { // If there aren't any predators nearby
 			vegetation_cell greener_neighbor <- orig_cell.neighbors2 with_max_of (each.food);
-    		if (orig_cell.food >= greener_neighbor.food) { // unless current cell is just as "green"
-    			//TODO: move towards by 1 cell
-    			targ_cell <- orig_cell;
-    			energy <- energy - energy_graze; // subtract energy from grazing
+			write "greener neighbors has food: "+ greener_neighbor.food; 
+			write "I have food: " + orig_cell.food;
+    		if (orig_cell.food < greener_neighbor.food) { // if current cell has less food than greenest neighbor
+    			//move towards greener neighbor by 1 cell 
+    			targ_cell <- move_distance(greener_neighbor, 1.0, true);
+    			write "moved to greener neigbor";
     		} else { // stay at the same cell
-    			targ_cell <- greener_neighbor;
-    			energy <- energy - energy_wander; // subtract energy from wandering
+    			targ_cell <- orig_cell;
+    			write "did not move";
+    			energy <- energy - energy_graze; // subtract energy from grazing
     		}
-			
 		}
 		
         return targ_cell;
@@ -262,7 +352,7 @@ species predator parent: generic_species {
     
     vegetation_cell choose_cell {
 //    	write energy;
-		write my_cell.neighbors2;
+//		write my_cell.neighbors2;
     	
     	vegetation_cell orig_cell <- self.my_cell;
     	vegetation_cell targ_cell <- self.my_cell;
@@ -274,38 +364,10 @@ species predator parent: generic_species {
 //				return closestPrey.my_cell;
 				targ_cell <- closestPrey.my_cell;
 			} else { // "sprint" towards the prey
-				float preyX <- closestPrey.location.x;
-				float preyY <- closestPrey.location.y;
-				float selfX <- self.location.x;
-				float selfY <- self.location.y;
-				float x_diff <- preyX-selfX;
-				float y_diff <- preyY-selfY;
-				float moveX <- 0.0;
-				float moveY <- 0.0;
-				float moves <- 2.0;
-				
-				moveX <- min([abs(x_diff), moves]); // move on x_axis as much as is the difference between prey & predator, at most 2
-				moves <- moves - moveX;
-				if (x_diff < 0) { // if prey was on the left, move to left
-					moveX <- moveX * (-1);
-				}
-				if (moves > 0) {
-					moveY <- min([abs(y_diff), moves]);
-					moves <- moves - moveY;
-					if (y_diff < 0) {
-						moveY <- moveY * (-1);
-					}
-				}
-				if (moves = 0) {
-					energy <- energy - energy_sprint; // subtract energy from sprinting
-				} else if (moves = 1) {
-					energy <- energy - energy_wander; // subtract energy from wandering
-				}
-				
-				targ_cell <- vegetation_cell at {selfX + moveX, selfY + moveY};
+				targ_cell <- move_distance(closestPrey.my_cell, 2.0, true);
 			}
     	} else { // otherwise move towards greener grass as that's where sheep would go as well
-    		targ_cell <- orig_cell.neighbors2 with_max_of (each.food); // TODO increase "vision" into 2 cells (1 at the moment)
+    		targ_cell <- orig_cell.neighbors2 with_max_of (each.food);
     		if (orig_cell.food >= targ_cell.food) { // unless current cell is just as "green"
     			targ_cell <- orig_cell;
     			energy <- energy - energy_graze; // subtract energy from grazing
@@ -353,24 +415,24 @@ experiment prey_predator type: gui {
 //            species predator aspect: info;
 //        }
 
-//        display Population_information refresh: every(5#cycles) {
-//            chart "Species evolution" type: series size: {1,0.5} position: {0, 0} {
-//                data "number_of_preys" value: nb_preys color: #blue;
-//                data "number_of_predator" value: nb_predators color: #red;
-//            }
-//            chart "Prey Energy Distribution" type: histogram background: #lightgray size: {0.5,0.5} position: {0, 0.5} {
-//                data "]0;0.25]" value: prey count (each.energy <= 0.25) color:#blue;
-//                data "]0.25;0.5]" value: prey count ((each.energy > 0.25) and (each.energy <= 0.5)) color:#blue;
-//                data "]0.5;0.75]" value: prey count ((each.energy > 0.5) and (each.energy <= 0.75)) color:#blue;
-//                data "]0.75;1]" value: prey count (each.energy > 0.75) color:#blue;
-//            }
-//            chart "Predator Energy Distribution" type: histogram background: #lightgray size: {0.5,0.5} position: {0.5, 0.5} {
-//                data "]0;0.25]" value: predator count (each.energy <= 0.25) color: #red;
-//                data "]0.25;0.5]" value: predator count ((each.energy > 0.25) and (each.energy <= 0.5)) color: #red;
-//                data "]0.5;0.75]" value: predator count ((each.energy > 0.5) and (each.energy <= 0.75)) color: #red;
-//                data "]0.75;1]" value: predator count (each.energy > 0.75) color: #red;
-//            }
-//        }
+        display Population_information refresh: every(5#cycles) {
+            chart "Species evolution" type: series size: {1,0.5} position: {0, 0} {
+                data "number_of_preys" value: nb_preys color: #blue;
+                data "number_of_predator" value: nb_predators color: #red;
+            }
+            chart "Prey Energy Distribution" type: histogram background: #lightgray size: {0.5,0.5} position: {0, 0.5} {
+                data "]0;0.25]" value: prey count (each.energy <= 0.25) color:#blue;
+                data "]0.25;0.5]" value: prey count ((each.energy > 0.25) and (each.energy <= 0.5)) color:#blue;
+                data "]0.5;0.75]" value: prey count ((each.energy > 0.5) and (each.energy <= 0.75)) color:#blue;
+                data "]0.75;1]" value: prey count (each.energy > 0.75) color:#blue;
+            }
+            chart "Predator Energy Distribution" type: histogram background: #lightgray size: {0.5,0.5} position: {0.5, 0.5} {
+                data "]0;0.25]" value: predator count (each.energy <= 0.25) color: #red;
+                data "]0.25;0.5]" value: predator count ((each.energy > 0.25) and (each.energy <= 0.5)) color: #red;
+                data "]0.5;0.75]" value: predator count ((each.energy > 0.5) and (each.energy <= 0.75)) color: #red;
+                data "]0.75;1]" value: predator count (each.energy > 0.75) color: #red;
+            }
+        }
 
         monitor "Number of preys" value: nb_preys;
         monitor "Number of predators" value: nb_predators;
