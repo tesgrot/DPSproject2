@@ -9,7 +9,7 @@ model Project
 
 global {
 	/* Prey info */
-    int nb_preys_init <- 1;//200;
+    int nb_preys_init <- 200;//200;
     int nb_preys -> {length(prey)};
     float prey_max_energy <- 1.0;
     float prey_max_transfert <- 0.1;
@@ -47,17 +47,6 @@ global {
         }
     }
     
-    /* Not necessary to save any data */
-//    reflex save_result when: (nb_preys > 0) and (nb_predators > 0){
-//        save ("cycle: "+ cycle + "; nbPreys: " + nb_preys
-//            + "; minEnergyPreys: " + (prey min_of each.energy)
-//            + "; maxSizePreys: " + (prey max_of each.energy) 
-//               + "; nbPredators: " + nb_predators           
-//               + "; minEnergyPredators: " + (predator min_of each.energy)          
-//               + "; maxSizePredators: " + (predator max_of each.energy)) 
-//               to: "results.txt" type: "text" rewrite: (cycle = 0) ? true : false;
-//    }
-    
     /* Pause simulation once some species extincts */
     reflex stop_simulation when: ((nb_preys = 0) or (nb_predators = 0)) and !is_batch {
         do pause;
@@ -76,7 +65,6 @@ species generic_species {
     float energy_reproduce;
     float energy_sprint; 
     float energy_wander;
-    //image_file my_icon;
     vegetation_cell my_cell <- one_of(vegetation_cell); // place at random cell
     float energy <- rnd(max_energy) update: energy - energy_consum max: max_energy; // initiate random energy (at most max_energy), subtract certain energy at each step
 
@@ -85,17 +73,6 @@ species generic_species {
     }
 
     reflex basic_move {
-//    	list<vegetation_cell> neighbors2 <- (self neighbors_at 0);
-//    	if (length(neighbors2) > 0) {
-//    		write neighbors2;
-//    	}
-//		generic_species spe <- species(self);
-//		list<generic_species> reachable_mates <- generic_species inside (my_cell);
-//		if (length(reachable_mates) > 0) {
-//			write self;
-//			write reachable_mates;
-//			write "\n";
-//		}
         my_cell <- choose_cell();
         location <- my_cell.location;
     }
@@ -121,14 +98,13 @@ species generic_species {
             energy <- myself.energy / nb_offsprings; // assign offsprings parts of "parent's" energy 
         }
         energy <- energy / nb_offsprings; // adjust energy
-
     }
 
     float energy_from_eat {
         return 0.0;
     }
     
-    vegetation_cell move_distance (vegetation_cell closestPrey, float moves, bool towards <- true){
+    vegetation_cell move_distance (vegetation_cell closestPrey, float moves, bool towards) {
     	
 		float preyX <- closestPrey.location.x;
 		float preyY <- closestPrey.location.y;
@@ -138,37 +114,42 @@ species generic_species {
 		float y_diff <- preyY-selfY;
 		float moveX <- 0.0;
 		float moveY <- 0.0;
+		int newX <- 0;
+		int newY <- 0;
 		float moveattr <- moves;
 		
-
+		write "moves left: " + moves;
+		/* Movement version 1 */
 		// if self right of prey
-		if(selfX > preyX){
+		if (selfX > preyX) {
 			// move left
 			moveX <- - min([abs(x_diff), moves]);
 			moves <- moves - min([abs(x_diff), moves]);
-		}else 
+		} else 
 		// self left of prey
-		if(selfX < preyX){
+		if (selfX < preyX) {
 			// move right
 			moveX <- min([abs(x_diff), moves]);
 			moves <- moves - min([abs(x_diff), moves]);
-		}else{
+		} else {
 			// if self under prey
-			if(selfY > preyY){
+			if (selfY > preyY) {
 				// move up
 				moveY <- -min([abs(y_diff), moves]);
 				moves <- moves - min([abs(y_diff), moves]);
 				
-			}else 
-			// if self over prey
-			if(selfY < preyY){
+			} else
+			// if self above prey
+			if(selfY < preyY) {
 				// move down
 				moveY <- min([abs(y_diff), moves]);
 				moves <- moves - min([abs(y_diff), moves]);
 			}
 		}
+		/* Movement version 1 END */
 		
 	
+		/* Movement version 2 */
 //		// movement x
 //		moveX <- min([abs(x_diff), moves]); // move on x_axis as much as is the difference between prey & predator, at most 2
 //		moves <- moves - moveX;
@@ -184,12 +165,13 @@ species generic_species {
 //				moveY <- moveY * (-1);
 //			}
 //		}
+		/* Movement version 2 END */
 		
-//		write species(self);
+		write species(self);
 		write "moves left: " + moves;
 		if(species(self) = prey){
 			write "xdsiff: "+x_diff;
-		write "ydiff: "+y_diff;
+			write "ydiff: "+y_diff;
 //			write "I'm prey and lost energy.";
 			float temp <- energy;
 			energy <- energy - energy_wander*(moveattr-moves);
@@ -207,12 +189,18 @@ species generic_species {
 			}
 		}
 		
-		if(towards){
-			return vegetation_cell at {selfX + moveX, selfY + moveY};
-		}else{
-			return vegetation_cell at {selfX - moveX, selfY - moveY};
-		}
+		write "*selfXY: " + selfX + " " + selfY;
+		write "*moveXY: " + moveX + " " + moveY; 
+		write "*sefl+moveXY: " + (selfX + moveX) + " " + (selfY + moveY);
 		
+		if(towards){
+			newX <- selfX + moveX;
+			newY <- selfY + moveY;
+		} else {
+			newX <- selfX - moveX;
+			newY <- selfY - moveY;
+		}
+		return vegetation_cell at {newX, newY};
     }
 
     vegetation_cell choose_cell {
@@ -233,24 +221,9 @@ species generic_species {
     		draw circle(size) color: color;
     	}
     }
-
-//    aspect icon {
-//        draw my_icon size: 2 * size;
-//    }
-
-//    aspect info {
-//		if (length(species(self) inside (my_cell)) >= 2) {
-//			write self;
-//			write species(self) inside (my_cell);
-//			write "\n";
-//		}
-//        draw square(size) color: color;
-//        draw string(energy with_precision 2) size: 3 color: #black;
-//    }
 }
 
 species prey parent: generic_species {
-//    rgb color <- #blue;
 	rgb color <- rgb(int(150 * (1-energy)), int(150 * (1-energy)), 255)
 		update: rgb(int(150 * (1-energy)), int(150 * (1-energy)), 255);
 	rgb darkcolor <- #darkblue;
@@ -262,24 +235,17 @@ species prey parent: generic_species {
     float energy_reproduce <- prey_energy_reproduce;
     float energy_graze <- prey_energy_graze;
     float energy_wander <- prey_energy_wander;
-    //image_file my_icon <- image_file("../includes/data/sheep.png");
 
     float energy_from_eat {
         float energy_transfert <- 0.0;
-        if(my_cell.food > 0) { // if current cell contains food
-            energy_transfert <- min([max_transfert, my_cell.food]); // "eat" as much food as possible
-            my_cell.food <- my_cell.food - energy_transfert; // update cell's food value (subtract eaten food)
+        if(my_cell.food > 0) {
+            energy_transfert <- min([max_transfert, my_cell.food]);
+            my_cell.food <- my_cell.food - energy_transfert;
         }             
         return energy_transfert;
     }
 
     vegetation_cell choose_cell { // strategy of movement (sheep go after juiciest grass within 1 field)
-//    	vegetation_cell options <- my_cell.neighbors2;
-//    	write options;
-//    	write my_cell;
-//    	add my_cell to:options;
-//    	write options;
-
 		vegetation_cell orig_cell <- my_cell;
 		vegetation_cell targ_cell <- my_cell;
 		
@@ -295,26 +261,28 @@ species prey parent: generic_species {
 				targ_cell <- move_distance(closestPredator.my_cell, 1.0, false);
 			}
 		} else { // If there aren't any predators nearby
-			vegetation_cell greener_neighbor <- orig_cell.neighbors2 with_max_of (each.food);
+			//TODO: if enought energy to mate...
+			vegetation_cell greener_neighbor <- orig_cell.neighbors1 with_max_of (each.food);
 			write "greener neighbors has food: "+ greener_neighbor.food; 
 			write "I have food: " + orig_cell.food;
     		if (orig_cell.food < greener_neighbor.food) { // if current cell has less food than greenest neighbor
     			//move towards greener neighbor by 1 cell 
     			targ_cell <- move_distance(greener_neighbor, 1.0, true);
-    			write "moved to greener neigbor";
+    			write "!!!moved to greener neigbor";
     		} else { // stay at the same cell
     			targ_cell <- orig_cell;
     			write "did not move";
     			energy <- energy - energy_graze; // subtract energy from grazing
     		}
 		}
-		
+		write orig_cell;
+		write targ_cell;
+		my_cell <- targ_cell;
         return targ_cell;
     }
 }
 
 species predator parent: generic_species {
-//    rgb color <- #red;
 	rgb color <- rgb(255, int(150 * (1-energy)), int(150 * (1-energy)))
 		update: rgb(255, int(150 * (1-energy)), int(150 * (1-energy)));
 	rgb darkcolor <- #crimson;
@@ -327,53 +295,39 @@ species predator parent: generic_species {
     float energy_graze <- predator_energy_graze;
     float energy_wander <- predator_energy_wander;
     float energy_sprint <- predator_energy_sprint;
-    //image_file my_icon <- image_file("../includes/data/wolf.png");
 
     float energy_from_eat {
         list<prey> reachable_preys <- prey inside (my_cell); // list of all preys within the cell
         if(! empty(reachable_preys)) { // if there are any
             ask one_of (reachable_preys) { // kill prey
-//            	write "kill";
                 do die;
             }
             return energy_transfert; // return amount of preset energy obtained from eating prey
         }
         return 0.0;
     }
-
-//    vegetation_cell choose_cell { // strategy of movement (wolves go after sheep)
-//        vegetation_cell my_cell_tmp <- shuffle(my_cell.neighbors2) first_with (!(empty(prey inside (each))));
-//        if my_cell_tmp != nil {
-//            return my_cell_tmp; //if any neighbor with sheep, go there
-//        } else {
-//            return one_of(my_cell.neighbors2); // else go to random neighbor
-//        }
-//    }
     
     vegetation_cell choose_cell {
-//    	write energy;
-//		write my_cell.neighbors2;
-    	
     	vegetation_cell orig_cell <- self.my_cell;
     	vegetation_cell targ_cell <- self.my_cell;
+    	write "orig_cell:"+orig_cell;
     	
     	prey closestPrey <- (prey at_distance 6) closest_to(self); //closest prey within the sight of predator
     	
     	if (closestPrey != nil) { // if there is any
-			if (self.location distance_to closestPrey.location <= 2) { // if there is prey within 2 cells, directly "sprint" there
-//				return closestPrey.my_cell;
-				targ_cell <- closestPrey.my_cell;
-			} else { // "sprint" towards the prey
-				targ_cell <- move_distance(closestPrey.my_cell, 2.0, true);
-			}
+			targ_cell <- move_distance(closestPrey.my_cell, 2.0, true);
     	} else { // otherwise move towards greener grass as that's where sheep would go as well
-    		targ_cell <- orig_cell.neighbors2 with_max_of (each.food);
+    		vegetation_cell greener_grass <- orig_cell.neighbors2 with_max_of (each.food);
+    		write "greener_grass" + greener_grass;
+    		targ_cell <- move_distance(greener_grass, 1.0, true);
+    		write "targ_cell:"+targ_cell;
     		if (orig_cell.food >= targ_cell.food) { // unless current cell is just as "green"
     			targ_cell <- orig_cell;
     			energy <- energy - energy_graze; // subtract energy from grazing
     		}
     	}
-		return targ_cell;//return one_of(my_cell.neighbors2);//(vegetation_cell at {0,0});
+		my_cell <- targ_cell;
+		return targ_cell;
     }
 }
 
@@ -409,30 +363,24 @@ experiment prey_predator type: gui {
             species predator aspect: base;
         }
 
-//        display info_display {
-//            grid vegetation_cell lines: #black;
-//            species prey aspect: info;
-//            species predator aspect: info;
+//        display Population_information refresh: every(5#cycles) {
+//            chart "Species evolution" type: series size: {1,0.5} position: {0, 0} {
+//                data "number_of_preys" value: nb_preys color: #blue;
+//                data "number_of_predator" value: nb_predators color: #red;
+//            }
+//            chart "Prey Energy Distribution" type: histogram background: #lightgray size: {0.5,0.5} position: {0, 0.5} {
+//                data "]0;0.25]" value: prey count (each.energy <= 0.25) color:#blue;
+//                data "]0.25;0.5]" value: prey count ((each.energy > 0.25) and (each.energy <= 0.5)) color:#blue;
+//                data "]0.5;0.75]" value: prey count ((each.energy > 0.5) and (each.energy <= 0.75)) color:#blue;
+//                data "]0.75;1]" value: prey count (each.energy > 0.75) color:#blue;
+//            }
+//            chart "Predator Energy Distribution" type: histogram background: #lightgray size: {0.5,0.5} position: {0.5, 0.5} {
+//                data "]0;0.25]" value: predator count (each.energy <= 0.25) color: #red;
+//                data "]0.25;0.5]" value: predator count ((each.energy > 0.25) and (each.energy <= 0.5)) color: #red;
+//                data "]0.5;0.75]" value: predator count ((each.energy > 0.5) and (each.energy <= 0.75)) color: #red;
+//                data "]0.75;1]" value: predator count (each.energy > 0.75) color: #red;
+//            }
 //        }
-
-        display Population_information refresh: every(5#cycles) {
-            chart "Species evolution" type: series size: {1,0.5} position: {0, 0} {
-                data "number_of_preys" value: nb_preys color: #blue;
-                data "number_of_predator" value: nb_predators color: #red;
-            }
-            chart "Prey Energy Distribution" type: histogram background: #lightgray size: {0.5,0.5} position: {0, 0.5} {
-                data "]0;0.25]" value: prey count (each.energy <= 0.25) color:#blue;
-                data "]0.25;0.5]" value: prey count ((each.energy > 0.25) and (each.energy <= 0.5)) color:#blue;
-                data "]0.5;0.75]" value: prey count ((each.energy > 0.5) and (each.energy <= 0.75)) color:#blue;
-                data "]0.75;1]" value: prey count (each.energy > 0.75) color:#blue;
-            }
-            chart "Predator Energy Distribution" type: histogram background: #lightgray size: {0.5,0.5} position: {0.5, 0.5} {
-                data "]0;0.25]" value: predator count (each.energy <= 0.25) color: #red;
-                data "]0.25;0.5]" value: predator count ((each.energy > 0.25) and (each.energy <= 0.5)) color: #red;
-                data "]0.5;0.75]" value: predator count ((each.energy > 0.5) and (each.energy <= 0.75)) color: #red;
-                data "]0.75;1]" value: predator count (each.energy > 0.75) color: #red;
-            }
-        }
 
         monitor "Number of preys" value: nb_preys;
         monitor "Number of predators" value: nb_predators;
