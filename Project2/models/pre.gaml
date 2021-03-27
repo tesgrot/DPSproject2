@@ -21,7 +21,7 @@ global {
     float prey_energy_wander <- 0.02;
     
 	/* Predator info */
-    int nb_predators_init <- 1;//20;
+    int nb_predators_init <- 20;//20;
     int nb_predators -> {length(predator)};
     float predator_max_energy <- 1.0;
     float predator_energy_transfert <- 0.5;
@@ -40,10 +40,10 @@ global {
     init {
         create prey number: nb_preys_init;
         create predator number: nb_predators_init;
-        ask vegetation_cell { // initialize colors of cells by raster_map
-            color <- rgb (map_init at {grid_x,grid_y}); // color taken from raster_map for each cell
-            food <- 1 - (((color as list) at 0) / 255); // value of food offered by cell - assigned from initial color intensity
-            food_prod <- food / 100; // how much grass can grow on each cell as time passes (initial "juicy" spots grow grass faster)
+        ask vegetation_cell {
+            color <-  rgb(map_init at {grid_x,grid_y});
+            food <- 1 - (((color as list) at 0) / 255);
+            food_prod <- food / 100; 
         }
     }
     
@@ -58,8 +58,7 @@ global {
 //               to: "results.txt" type: "text" rewrite: (cycle = 0) ? true : false;
 //    }
     
-    /* Pause simulation once some species extincts */
-    reflex stop_simulation when: ((nb_preys = 0) or (nb_predators = 0)) and !is_batch {
+    reflex stop_simulation when: (nb_preys = 0) or (nb_predators = 0) {
         do pause;
     } 
 }
@@ -85,23 +84,12 @@ species generic_species {
     }
 
     reflex basic_move {
-//    	list<vegetation_cell> neighbors2 <- (self neighbors_at 0);
-//    	if (length(neighbors2) > 0) {
-//    		write neighbors2;
-//    	}
-//		generic_species spe <- species(self);
-//		list<generic_species> reachable_mates <- generic_species inside (my_cell);
-//		if (length(reachable_mates) > 0) {
-//			write self;
-//			write reachable_mates;
-//			write "\n";
-//		}
         my_cell <- choose_cell();
         location <- my_cell.location;
     }
 
     reflex eat {
-        energy <- energy + energy_from_eat(); // add energy from eating    
+        energy <- energy + energy_from_eat();        
     }
 
     reflex die when: energy <= 0 {
@@ -115,104 +103,16 @@ species generic_species {
     reflex reproduce when: (energy >= energy_reproduce) and (flip(proba_reproduce) and has_mate()) {
         int nb_offsprings <- rnd(1, nb_max_offsprings); // returns random number between 1 and no. of max offsprings
         create species(self) number: nb_offsprings {
-        	write "reproduce " + self;
             my_cell <- myself.my_cell;
             location <- my_cell.location;
-            energy <- myself.energy / nb_offsprings; // assign offsprings parts of "parent's" energy 
+            energy <- myself.energy / nb_offsprings;
         }
-        energy <- energy / nb_offsprings; // adjust energy
 
+        energy <- energy / nb_offsprings;
     }
 
     float energy_from_eat {
         return 0.0;
-    }
-    
-    vegetation_cell move_distance (vegetation_cell closestPrey, float moves, bool towards <- true){
-    	
-		float preyX <- closestPrey.location.x;
-		float preyY <- closestPrey.location.y;
-		float selfX <- self.my_cell.location.x;
-		float selfY <- self.my_cell.location.y;
-		float x_diff <- preyX-selfX;
-		float y_diff <- preyY-selfY;
-		float moveX <- 0.0;
-		float moveY <- 0.0;
-		float moveattr <- moves;
-		
-
-		// if self right of prey
-		if(selfX > preyX){
-			// move left
-			moveX <- - min([abs(x_diff), moves]);
-			moves <- moves - min([abs(x_diff), moves]);
-		}else 
-		// self left of prey
-		if(selfX < preyX){
-			// move right
-			moveX <- min([abs(x_diff), moves]);
-			moves <- moves - min([abs(x_diff), moves]);
-		}else{
-			// if self under prey
-			if(selfY > preyY){
-				// move up
-				moveY <- -min([abs(y_diff), moves]);
-				moves <- moves - min([abs(y_diff), moves]);
-				
-			}else 
-			// if self over prey
-			if(selfY < preyY){
-				// move down
-				moveY <- min([abs(y_diff), moves]);
-				moves <- moves - min([abs(y_diff), moves]);
-			}
-		}
-		
-	
-//		// movement x
-//		moveX <- min([abs(x_diff), moves]); // move on x_axis as much as is the difference between prey & predator, at most 2
-//		moves <- moves - moveX;
-//		if (x_diff < 0) { // if prey was on the left, move to left
-//			moveX <- moveX * (-1);
-//		}
-//		
-//		// move y if there is more moves
-//		if (moves > 0) {
-//			moveY <- min([abs(y_diff), moves]);
-//			moves <- moves - moveY;
-//			if (y_diff < 0) {
-//				moveY <- moveY * (-1);
-//			}
-//		}
-		
-//		write species(self);
-		write "moves left: " + moves;
-		if(species(self) = prey){
-			write "xdsiff: "+x_diff;
-		write "ydiff: "+y_diff;
-//			write "I'm prey and lost energy.";
-			float temp <- energy;
-			energy <- energy - energy_wander*(moveattr-moves);
-
-			write "lost energy: " + (temp-energy);
-
-		} else { // if(species(self) is species(predator))
-			write "wolf loses energy: ";
-			if (moves = 0) {
-//				write "before: " + energy;
-				energy <- energy - energy_sprint; // subtract energy from sprinting
-//				write "now: " + energy;
-			} else if (moves = 1) {
-				energy <- energy - energy_wander; // subtract energy from wandering
-			}
-		}
-		
-		if(towards){
-			return vegetation_cell at {selfX + moveX, selfY + moveY};
-		}else{
-			return vegetation_cell at {selfX - moveX, selfY - moveY};
-		}
-		
     }
 
     vegetation_cell choose_cell {
@@ -234,19 +134,6 @@ species generic_species {
     	}
     }
 
-//    aspect icon {
-//        draw my_icon size: 2 * size;
-//    }
-
-//    aspect info {
-//		if (length(species(self) inside (my_cell)) >= 2) {
-//			write self;
-//			write species(self) inside (my_cell);
-//			write "\n";
-//		}
-//        draw square(size) color: color;
-//        draw string(energy with_precision 2) size: 3 color: #black;
-//    }
 }
 
 species prey parent: generic_species {
@@ -273,43 +160,57 @@ species prey parent: generic_species {
         return energy_transfert;
     }
 
-    vegetation_cell choose_cell { // strategy of movement (sheep go after juiciest grass within 1 field)
-//    	vegetation_cell options <- my_cell.neighbors2;
-//    	write options;
-//    	write my_cell;
-//    	add my_cell to:options;
-//    	write options;
-
-		vegetation_cell orig_cell <- my_cell;
-		vegetation_cell targ_cell <- my_cell;
-		
-		list<predator> predators <- (predator at_distance 3); // list of "visible" predators
-		// If predator is at neighboring cell, flee
-		predator closestPredator <- (predator at_distance 3) closest_to(self); //closest predator within the sight of prey
-		if (closestPredator != nil) {
-			if (self.location distance_to closestPredator.location <= 1) { // if there is predator within 1 cell, flee
-				// move away by 3 fields (-energy_flee)
-				targ_cell <- move_distance(closestPredator.my_cell, 3.0, false);
-			} else { // Otherwise move slowly away
-				// move away by 1 field (-energy_wander)
-				targ_cell <- move_distance(closestPredator.my_cell, 1.0, false);
-			}
-		} else { // If there aren't any predators nearby
-			vegetation_cell greener_neighbor <- orig_cell.neighbors2 with_max_of (each.food);
-			write "greener neighbors has food: "+ greener_neighbor.food; 
-			write "I have food: " + orig_cell.food;
-    		if (orig_cell.food < greener_neighbor.food) { // if current cell has less food than greenest neighbor
-    			//move towards greener neighbor by 1 cell 
-    			targ_cell <- move_distance(greener_neighbor, 1.0, true);
-    			write "moved to greener neigbor";
-    		} else { // stay at the same cell
-    			targ_cell <- orig_cell;
-    			write "did not move";
-    			energy <- energy - energy_graze; // subtract energy from grazing
+    vegetation_cell choose_cell {
+    	vegetation_cell closest_predator <- (my_cell.neighbors1) first_with (!(empty(predator inside(each))));
+    	if closest_predator != nil {
+    		// if predator next to me sprint away to furthest possible field
+    		write "sprint away 3";
+    		energy_consum <- energy_sprint;
+    		return (my_cell.neighbors3) with_max_of (each distance_to closest_predator);
+    	}else{
+    		// if no predator next to me
+    		// walk away from predators within vision (3 fields)
+    		closest_predator <- (my_cell.neighbors3) first_with (!(empty(predator inside (each))));
+    		if closest_predator != nil {
+    			// if predator in sight, walk away
+    			write "walk away 1";
+    			energy_consum <- energy_wander;
+    			return (my_cell.neighbors1) with_max_of(each distance_to closest_predator);
+    		}else{
+    			// no predator in sight
+    			if energy > energy_reproduce {
+    				// enough energy to reproduce
+    				write "enough energy to reproduce";
+    				vegetation_cell closest_prey <- (my_cell.neighbors1) first_with (!(empty(prey inside(each))));
+    				if closest_prey = nil {
+    					closest_prey <- (my_cell.neighbors2) first_with (!(empty(prey inside(each))));
+    				}
+    				if closest_prey = nil {
+    					closest_prey <- (my_cell.neighbors3) first_with (!(empty(prey inside(each))));
+    				}
+    				if closest_prey != nil {
+    					// go towards other prey to mate
+    					write "walk towards mate";
+    					energy_consum <- energy_wander;
+    					return (my_cell.neighbors1) with_max_of(each distance_to closest_prey);
+    				}else{
+    					// no one in sight, go for food
+    					write "no one in sight, go for food";
+    					energy_consum <- energy_wander;
+    					return (my_cell.neighbors1) with_max_of (each.food);
+    				}
+    			}else{
+    				// not enough energy to reproduce
+    				// go to greenest grass
+    				write "not enough energy, go towards food";
+    				energy_consum <- energy_wander;
+    				return (my_cell.neighbors1) with_max_of (each.food);
+    			}
     		}
-		}
-		
-        return targ_cell;
+    	}
+    	write "error no case matched. ";
+    	
+        return (my_cell.neighbors2) with_max_of (each.food);
     }
 }
 
@@ -341,41 +242,42 @@ species predator parent: generic_species {
         return 0.0;
     }
 
-//    vegetation_cell choose_cell { // strategy of movement (wolves go after sheep)
-//        vegetation_cell my_cell_tmp <- shuffle(my_cell.neighbors2) first_with (!(empty(prey inside (each))));
-//        if my_cell_tmp != nil {
-//            return my_cell_tmp; //if any neighbor with sheep, go there
-//        } else {
-//            return one_of(my_cell.neighbors2); // else go to random neighbor
-//        }
-//    }
-    
     vegetation_cell choose_cell {
-//    	write energy;
-//		write my_cell.neighbors2;
-    	
-    	vegetation_cell orig_cell <- self.my_cell;
-    	vegetation_cell targ_cell <- self.my_cell;
-    	
-    	prey closestPrey <- (prey at_distance 6) closest_to(self); //closest prey within the sight of predator
-    	
-    	if (closestPrey != nil) { // if there is any
-			if (self.location distance_to closestPrey.location <= 2) { // if there is prey within 2 cells, directly "sprint" there
-//				return closestPrey.my_cell;
-				return closestPrey.my_cell;
-			} else { // "sprint" towards the prey
-				return move_distance(closestPrey.my_cell, 2.0, true);
+        vegetation_cell my_cell_tmp <- (my_cell.neighbors1) first_with (!(empty(prey inside (each))));
+        if my_cell_tmp = nil {
+        	my_cell_tmp <- (my_cell.neighbors2) first_with (!(empty(prey inside (each))));
+        }
+        if my_cell_tmp != nil {
+        	energy_consum <- energy_sprint;
+            return my_cell_tmp;
+        } else {
+        	// no prey in sight
+        	// if prey within 6 tiles go towards them
+        	energy_consum <- energy_wander;
+			my_cell_tmp <- my_cell.neighbors2 closest_to (my_cell.neighbors1 first_with(!(empty(prey inside (each)))));
+			if my_cell_tmp = nil {
+				my_cell_tmp <- my_cell.neighbors2 closest_to (my_cell.neighbors2 first_with(!(empty(prey inside (each)))));
 			}
-    	} else { // otherwise move towards greener grass as that's where sheep would go as well
-    		targ_cell <- orig_cell.neighbors2 with_max_of (each.food);
-    		if (orig_cell.food >= targ_cell.food) { // unless current cell is just as "green"
-    			energy <- energy - energy_graze; // subtract energy from grazing
-    			return orig_cell;
-    			
-    		}
-    		return targ_cell;
-    	}
-		return targ_cell;//return one_of(my_cell.neighbors2);//(vegetation_cell at {0,0});
+			if my_cell_tmp = nil {
+				my_cell_tmp <- my_cell.neighbors2 closest_to (my_cell.neighbors3 first_with(!(empty(prey inside (each)))));
+			}
+			if my_cell_tmp = nil {
+				my_cell_tmp <- my_cell.neighbors2 closest_to (my_cell.neighbors4 first_with(!(empty(prey inside (each)))));
+			}
+			if my_cell_tmp = nil {
+				my_cell_tmp <- my_cell.neighbors2 closest_to (my_cell.neighbors5 first_with(!(empty(prey inside (each)))));
+			}
+			if my_cell_tmp = nil {
+				my_cell_tmp <- my_cell.neighbors2 closest_to (my_cell.neighbors6 first_with(!(empty(prey inside (each)))));
+			}
+			if my_cell_tmp != nil {
+				return my_cell_tmp;
+			}else{
+				// also no prey in further vision
+				// go to greenest gras
+				return (my_cell.neighbors2) with_max_of (each.food);
+			}
+        }
     }
 }
 
@@ -384,8 +286,16 @@ grid vegetation_cell width: 50 height: 50 neighbors: 4 {
     float food_prod <- rnd(0.01);
     float food <- rnd(1.0) max: max_food update: food + food_prod; // "growing grass"
     rgb color <- rgb(int(255 * (1 - food)), 255, int(255 * (1 - food))) update: rgb(int(255 * (1 - food)), 255, int(255 * (1 - food)));
-    list<vegetation_cell> neighbors2 <- self neighbors_at 2;// return neighbors within 2 fields
-    list<vegetation_cell> neighbors1 <- self neighbors_at 1; // return neighbors within 1 field
+    list<vegetation_cell> neighbors1 <- self neighbors_at 1;// return neighbors within 2 fields
+    list<vegetation_cell> neighbors2 <- self neighbors_at 2; // return neighbors within 1 field
+    list<vegetation_cell> neighbors3 <- self neighbors_at 3;
+    list<vegetation_cell> neighbors4 <- self neighbors_at 4;
+    list<vegetation_cell> neighbors5 <- self neighbors_at 5;
+    list<vegetation_cell> neighbors6 <- self neighbors_at 6;
+    float getDistance(vegetation_cell other) {
+    	
+    	return 0;
+    }
 }
 
 experiment prey_predator type: gui {
@@ -439,14 +349,4 @@ experiment prey_predator type: gui {
         monitor "Number of preys" value: nb_preys;
         monitor "Number of predators" value: nb_predators;
     }
-}
-
-experiment Optimization type: batch repeat: 2 keep_seed: true until: ( time > 200 ) {
-    parameter "Prey max transfert:" var: prey_max_transfert min: 0.05 max: 0.5 step: 0.05;
-    parameter "Prey energy reproduce:" var: prey_energy_reproduce min: 0.05 max: 0.75 step: 0.05;
-    parameter "Predator energy transfert:" var: predator_energy_transfert min: 0.1 max: 1.0 step: 0.1;
-    parameter "Predator energy reproduce:" var: predator_energy_reproduce min: 0.1 max: 1.0 step: 0.1;
-    parameter "Batch mode:" var: is_batch <- true;
-    
-    method tabu maximize: nb_preys + nb_predators iter_max: 10 tabu_list_size: 3;
 }
