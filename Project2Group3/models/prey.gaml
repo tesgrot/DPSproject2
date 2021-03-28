@@ -12,8 +12,7 @@
 model prey
 
 import "prey_predator.gaml"
-import "predator.gaml"
-import "vegetation_cell.gaml"
+import "generic_species.gaml"
 
 global {
 	/* Prey info */
